@@ -1,0 +1,66 @@
+﻿<Project DefaultTargets = "BuildSolution" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" >
+	<PropertyGroup>
+		<BaseDir>$(MSBuildProjectDirectory)</BaseDir>
+		<Configuration Condition="'$(Configuration)'==''" >Release</Configuration>
+		<BuildDir>$(BaseDir)\.build</BuildDir>
+		<SolutionFile>unirest-net\unirest-net.sln</SolutionFile>
+		<NuSpecFileName>unirest-net.nuspec</NuSpecFileName>
+		<PackageDir>$(BuildDir)\Packages</PackageDir>
+		<NuGetExe Condition="$(NuGetExe) == ''">.\.nuget\nuget.exe</NuGetExe>
+		<MSBuildCommunityTasksPath>$(BaseDir)\.build</MSBuildCommunityTasksPath>
+	</PropertyGroup>
+
+	<Import Project="$(BuildDir)\MSBuild.Community.Tasks.Targets" />
+
+	<Target Name="KickStart">
+		<ItemGroup>
+			<NuGetPackageConfigs Include="**\**\packages.config" />
+		</ItemGroup>
+		<Exec Command="$(NuGetExe) install %(NuGetPackageConfigs.Identity) -o packages" />
+	</Target>
+
+	<Target Name="Compile">
+		<MSBuild Projects="$(SolutionFile)" Targets="Rebuild" Properties="Configuration=Release;Platform=Any CPU"/>
+	</Target>
+
+	<Target Name="Clean">
+		<MSBuild Projects="$(SolutionFile)" targets="Clean" />
+	</Target>
+	
+	<Target Name="Package">
+		<ItemGroup>
+			<MainBinaries Include="$(BaseDir)/unirest-net/unirest-net/bin/Release/unirest-net.dll" />
+		</ItemGroup>
+
+		<RemoveDir Directories="$(PackageDir)/unirest-net"/>
+
+		<Copy SourceFiles="$(BaseDir)/unirest-net/$(NuSpecFileName)" DestinationFolder="$(PackageDir)/unirest-net" />
+		<Copy SourceFiles="@(MainBinaries)" DestinationFolder="$(PackageDir)/unirest-net/lib/net40" />
+
+		<GetAssemblyIdentity AssemblyFiles="$(BaseDir)/unirest-net/unirest-net/bin/Release/unirest-net.dll">
+			<Output TaskParameter="Assemblies" ItemName="EMAssemblyInfo" />
+		</GetAssemblyIdentity>
+		
+		<PropertyGroup>
+			<VerText>%(EMAssemblyInfo.Version)</VerText>
+			<SplitTxt>$(VerText.Split('.'))</SplitTxt>
+		</PropertyGroup>
+		
+		<Message Importance="high" Text="Updating Nuspec version to $(SplitTxt[0]).$(SplitTxt[2]).$(SplitTxt[4])" />
+		
+		<XmlUpdate
+			XmlFileName="$(PackageDir)/unirest-net/$(NuSpecFileName)"
+			XPath="//package/metadata/version"
+			Value="$(SplitTxt[0]).$(SplitTxt[2]).$(SplitTxt[4])" />
+
+		<Exec WorkingDirectory="$(PackageDir)/unirest-net" 
+			Command="$(MSBuildProjectDirectory)/$(NuGetExe) pack $(PackageDir)/unirest-net/$(NuSpecFileName)" />
+	</Target>
+
+	<Target Name="BuildSolution"  DependsOnTargets="Kickstart">
+		<CallTarget Targets="Clean"/>
+		<CallTarget Targets="Compile"/>
+		<CallTarget Targets="Package"/>
+		<CallTarget Targets="Clean"/>
+	</Target>
+</Project>
